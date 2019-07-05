@@ -1,0 +1,18 @@
+{{ if .Values.backup.enabled }}
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: {{ include "helm-postgres-google-backup.fullname" . }}-backup-volume
+  labels:
+    app: {{ include "helm-postgres-google-backup.fullname" . }}
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.backup.volumeSize | quote }}
+  storageClassName: "standard"
+{{ end }}

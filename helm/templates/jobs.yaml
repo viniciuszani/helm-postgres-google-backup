@@ -1,0 +1,91 @@
+{{ if .Values.backup.enabled }}
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: {{ include "helm-postgres-google-backup.fullname" . }}
+spec:
+  schedule: {{ .Values.backup.schedule }}
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          initContainers:
+          - name: postgres-backup
+            image: postgres:11-alpine
+            args:
+            - /bin/sh
+            - -c
+            - source /backup-scripts/functions.sh && full_backup || { mail_error; }
+            volumeMounts:
+            - name: backup-data
+              mountPath: /backups
+            - name: backup-scripts
+              mountPath: /backup-scripts
+            env:
+            - name: DATABASE_HOST
+              value: {{ .Release.Name }}-postgresql
+            - name: DATABASE_USER
+              value: {{ .Values.postgresql.postgresqlUsername | quote }}
+            - name: DATABASE_NAME
+              value: {{ .Values.postgresql.postgresqlDatabase | quote }}
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "helm-postgres-google-backup.fullname" . }}
+                  key: database-password
+          - name: backup-uploader
+            image: google/cloud-sdk:alpine
+            args:
+            - /bin/sh
+            - -c
+            - source /backup-scripts/functions.sh && setup_service_account && upload && mail_success || { mail_error; }
+            volumeMounts:
+            - name: backup-data
+              mountPath: /backups
+            - name: backup-scripts
+              mountPath: /backup-scripts
+            env:
+            - name: BACKUP_BUCKET
+              value: {{ .Values.backup.bucket | quote }}
+            - name: GOOGLE_ACCOUNT_JSON
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "helm-postgres-google-backup.fullname" . }}
+                  key: google-account-json
+            {{- if .Values.backup.email.enabled }}
+            {{- with .Values.backup.email }}
+            - name: NOTIFICATION_EMAIL_TO
+              value: {{ .to | quote }}
+            - name: NOTIFICATION_EMAIL_FROM
+              value: {{ .from | quote }}
+            - name: EMAIL_SUCCESS_SUBJECT
+              value: {{ .success.subject | quote }}
+            - name: EMAIL_SUCCESS_BODY
+              value: {{ .success.body | quote }}
+            - name: EMAIL_ERROR_SUBJECT
+              value: {{ .error.subject | quote }}
+            - name: EMAIL_ERROR_BODY
+              value: {{ .error.body | quote }}
+            {{- end }}
+            - name: SENDGRID_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "helm-postgres-google-backup.fullname" . }}
+                  key: sendgrid-api-key
+            {{- end }}
+          containers:
+          - name: job-done
+            image: busybox
+            args:
+            - /bin/sh
+            - -c
+            - echo "Backup was performed successfully!"
+          restartPolicy: Never
+          volumes:
+          - name: backup-scripts
+            configMap:
+              name: {{ include "helm-postgres-google-backup.fullname" . }}-scripts
+          - name: backup-data
+            persistentVolumeClaim:
+              claimName: {{ include "helm-postgres-google-backup.fullname" . }}-backup-volume
+{{ end }}

@@ -1,0 +1,77 @@
+# Section that overrides some of the variables of the postgres subchart.
+# Credentials and DB are mandatory so the job knows what to do.
+# Read more: https://github.com/helm/charts/tree/master/stable/postgresql
+postgresql:
+  postgresqlPassword: ""
+  postgresqlUsername: ""
+  postgresqlDatabase: ""
+  # Every variable defined in the postgres chart can be overriden here
+  # Example:
+  # resources:
+  #   requests:
+  #     memory: 256Mi
+  #     cpu: 250m
+
+# Performs backups programatically
+backup:
+  # You can disable the backup and just install the DB service.
+  # This is quite helpful in cases where you desire to deploy the DB
+  # in a test environment, for example.
+  enabled: false
+
+  # Raw JSON file, will be stored as a secret
+  googleServiceAccount: ""
+  # example of googleServiceAccount
+  # googleServiceAccount: |-
+  #   {
+  #     "type": "service_account",
+  #     "project_id": "your-project-ID-9999",
+  #     "private_key_id": "someprivatekeyID",
+  #     "private_key": "someprivatekey",
+  #     "client_email": "serviceaccountemail",
+  #     "client_id": "999999",
+  #     "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  #     "token_uri": "https://oauth2.googleapis.com/token",
+  #     "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  #     "client_x509_cert_url": "someurl"
+  #   }
+
+  # Bucket is just the folder's name of Google Cloud Storage
+  # where your backups are going to be stored at.
+  bucket: ""
+
+  # This is a default crontab entry. Adjust to fit your
+  # system's best maintenance window.
+  # Example: backup scheduled at 5 AM every day
+  schedule: "0 5 * * *"
+
+  # The backup job is made of small containers sharing backup (gzipped) data through a folder.
+  # Adjust this size to best fit your growing data demands
+  volumeSize: 1Gi
+
+  # Mailing is optional, but quite helpful so you get notified
+  # as soon as it finishes running.
+  email:
+    # Enable/disable mailing
+    enabled: false
+
+    # Provide your SendGrid API key here "SG.xxxxx...."
+    sendgridApiKey: ""
+
+    # Email addess to which the confirmation email will be sent to
+    to: ""
+
+    # You can customize the sender as well
+    from: ""
+
+    # Contents.
+    # Supported placeholders:
+    #   %DATE%                  Replaced with `date +%F` (YYYY-MM-DD)
+    #   %BACKUP_ADDRESS%        Replaced with the complete bucket address (ex: gs://bucket-name/date/backup-item.gz)
+    success:
+      subject: "[Backup Job] [%DATE%] Success"
+      body: "<html><body>The database backup was performed successfully.<br/>The file was saved at '%BACKUP_ADDRESS%'.</body></html>"
+    error:
+      subject: "[Backup Job] [%DATE%] Failed"
+      body: "<html><body><strong>Attention!</strong><br/>The database backup failed.<br/>Please check the job container logs to understand the reason.</body></html>"
+
